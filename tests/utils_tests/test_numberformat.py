@@ -55,10 +55,32 @@ class TestNumberFormat(SimpleTestCase):
         self.assertEqual(nformat(-2 * int_max, '.'), most_max2.format('-'))
 
     def test_float_numbers(self):
-        # A float without a fractional part (3.) results in a ".0" when no
-        # decimal_pos is given. Contrast that with the Decimal('3.') case in
-        # test_decimal_numbers which doesn't return a fractional part.
-        self.assertEqual(nformat(3., '.'), '3.0')
+        tests = [
+            (3., None, '3.0'),
+            (0.00000001, 8, '0.00000001'),
+            (0.0000000000000000009, 19, '0.0000000000000000009'),
+            (9e-19, 2, '0.00'),
+            (9e-19, None, '0.0'),
+            (9e-19, 0, '0'),   
+            (0.13249135409823450924852049852405824090582345, None, '0.13249135'),
+            (1e-7, 8, '0.00000010'),
+            (1e-8, 8, '0.00000001'),
+            (1e-9, 8, '0.00000000'),
+            (1e-10, 8, '0.00000000'),
+            (1e-11, 8, '0.00000000'),
+            (float('0.{}1234'.format('0' * 299)), 3, '0.000'),
+        ]
+        for value, decimal_pos, expected_value in tests:
+            with self.subTest(value=value):
+                self.assertEqual(nformat(value, '.', decimal_pos), expected_value)            
+        self.assertEqual(
+            nformat(1e16, '.', thousand_sep=',', grouping=3, force_grouping=True),
+            '10,000,000,000,000,000.0'
+        )
+        self.assertEqual(
+            nformat(1e16, '.', decimal_pos=2, thousand_sep=',', grouping=3, force_grouping=True),
+            '10,000,000,000,000,000.00'
+        )
 
     def test_decimal_numbers(self):
         self.assertEqual(nformat(Decimal('1234'), '.'), '1234')

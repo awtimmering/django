@@ -21,36 +21,45 @@ def format(number, decimal_sep, decimal_pos=None, grouping=0, thousand_sep='',
     use_grouping = (use_l10n or (use_l10n is None and settings.USE_L10N)) and settings.USE_THOUSAND_SEPARATOR
     use_grouping = use_grouping or force_grouping
     use_grouping = use_grouping and grouping != 0
+    
     # Make the common case fast
     if isinstance(number, int) and not use_grouping and not decimal_pos:
         return mark_safe(number)
+
     # sign
     sign = ''
-    if isinstance(number, Decimal):
+    if isinstance(number, (Decimal, float)):
+        num_type = type(number)
 
         if decimal_pos is not None:
             # If the provided number is too small to affect any of the visible
             # decimal places, consider it equal to '0'.
-            cutoff = Decimal('0.' + '1'.rjust(decimal_pos, '0'))
+            cutoff = num_type('0.' + '1'.rjust(decimal_pos, '0'))
             if abs(number) < cutoff:
-                number = Decimal('0')
-
+                number = num_type('0')
+       
         # Format values with more than 200 digits (an arbitrary cutoff) using
         # scientific notation to avoid high memory usage in {:f}'.format().
-        _, digits, exponent = number.as_tuple()
-        if abs(exponent) + len(digits) > 200:
-            number = '{:e}'.format(number)
-            coefficient, exponent = number.split('e')
-            # Format the coefficient.
-            coefficient = format(
-                coefficient, decimal_sep, decimal_pos, grouping,
-                thousand_sep, force_grouping, use_l10n,
-            )
-            return '{}e{}'.format(coefficient, exponent)
-        else:
-            str_number = '{:f}'.format(number)
+        if isinstance(number, Decimal):
+            _, digits, exponent = number.as_tuple()
+            if abs(exponent) + len(digits) > 200:
+                number = '{:e}'.format(number)
+                coefficient, exponent = number.split('e')
+                # Format the coefficient.
+                coefficient = format(
+                    coefficient, decimal_sep, decimal_pos, grouping,
+                    thousand_sep, force_grouping, use_l10n,
+                )
+                return '{}e{}'.format(coefficient, exponent)
+            else:
+                str_number = '{:f}'.format(number)            
+        if isinstance(number, float):    
+            precision = decimal_pos or 8 # unneeded zeros removed later
+            fmt = '{{:.{}f}}'.format(precision)  # gives '{:.1f}' if precision=1
+            str_number = fmt.format(number)
     else:
         str_number = str(number)
+           
     if str_number[0] == '-':
         sign = '-'
         str_number = str_number[1:]
@@ -63,7 +72,11 @@ def format(number, decimal_sep, decimal_pos=None, grouping=0, thousand_sep='',
         int_part, dec_part = str_number, ''
     if decimal_pos is not None:
         dec_part = dec_part + ('0' * (decimal_pos - len(dec_part)))
+    else:
+        if isinstance(number, (float, int)):
+            dec_part = dec_part.rstrip('0') or ('0' if isinstance(number, float) else '')
     dec_part = dec_part and decimal_sep + dec_part
+
     # grouping
     if use_grouping:
         try:
